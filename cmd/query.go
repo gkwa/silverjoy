@@ -102,10 +102,8 @@ func test() {
 		ORDER BY [store IN Stores | toLower(store)]
 	`
 
-	// Create a new text template and parse the query
 	tmpl := template.Must(template.New("query").Parse(queryTemplate))
 
-	// Execute the template with recipe names
 	var query strings.Builder
 	err = tmpl.Execute(&query, recipeNames)
 	if err != nil {
