@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"os"
@@ -89,17 +90,20 @@ func test() {
 	recipeNames := []string{"Peanut Sauce", "Vietnamese Spring Rolls (Gỏi Cuốn)"}
 	// recipeNames = []string{"Vietnamese Spring Rolls (Gỏi Cuốn)"}
 
-	// Define a template for the query
 	queryTemplate := `
-		MATCH (r:Recipe)
-		WHERE r.name IN [{{ range $i, $name := . }}{{ if $i }}, {{ end }}'{{ $name }}'{{ end }}]
-		WITH r
-		MATCH (r)-[:CONTAINS]->(p:Product)
-		OPTIONAL MATCH (p)-[:PURCHASE_AT]->(s:Store)
-		WITH p, COLLECT(DISTINCT s) AS stores
-		RETURN COLLECT(DISTINCT p.name) AS Ingredients,
-		       [store IN stores | CASE WHEN store IS NOT NULL THEN store.name ELSE 'Unknown' END] AS Stores
-		ORDER BY [store IN Stores | toLower(store)]
+	MATCH (r:Recipe)
+	WHERE r.name IN [{{ range $i, $name := . }}{{ if $i }}, {{ end }}'{{ $name }}'{{ end }}]
+	WITH r
+	MATCH (r)-[:CONTAINS]->(p:Product)
+	OPTIONAL MATCH (p)-[:PURCHASE_AT]->(s:Store)
+	WITH p, COLLECT(DISTINCT s) AS stores
+	WITH p, stores, COLLECT(DISTINCT p.name) AS Ingredients, 
+		 [store IN stores | CASE WHEN store IS NOT NULL THEN store.name ELSE 'Unknown' END] AS Stores
+	RETURN apoc.convert.toJson({
+		Ingredients: Ingredients,
+		Stores: Stores
+	}) AS result
+	ORDER BY [store IN Stores | toLower(store)]
 	`
 
 	tmpl := template.Must(template.New("query").Parse(queryTemplate))
@@ -111,42 +115,40 @@ func test() {
 		return
 	}
 
+	fmt.Println(query.String())
+
+	var recipeIngredients []RecipeIngredient
+
 	result, err := tx.Run(ctx, query.String(), nil)
 	if err != nil {
 		fmt.Println("Error running Neo4j query:", err)
 		return
 	}
 
-	var recipeIngredients []RecipeIngredient
-
 	for result.Next(ctx) {
 		record := result.Record()
-		keys := record.Keys
+		value, found := record.Get("result")
+		if !found {
+			continue
+		}
 
-		recipeIngredient := RecipeIngredient{}
-
-		for _, key := range keys {
-			value, _ := record.Get(key)
-
-			// Check if the value is a list
-			if list, ok := value.([]interface{}); ok {
-				// If it's a list, loop over the elements of the list
-				if key == "Ingredients" {
-					recipeIngredient.Ingredients = make([]string, len(list))
-					for i, item := range list {
-						recipeIngredient.Ingredients[i] = item.(string)
-					}
-				} else if key == "Stores" {
-					recipeIngredient.Stores = make([]string, len(list))
-					for i, item := range list {
-						recipeIngredient.Stores[i] = item.(string)
-					}
-				}
-			}
+		var recipeIngredient RecipeIngredient
+		if err := json.Unmarshal([]byte(value.(string)), &recipeIngredient); err != nil {
+			fmt.Println("Error unmarshaling JSON:", err)
+			return
 		}
 
 		recipeIngredients = append(recipeIngredients, recipeIngredient)
 	}
+
+	recipeJSON, err := json.MarshalIndent(recipeIngredients, "", "    ")
+	if err != nil {
+		fmt.Println("Error marshaling JSON:", err)
+		return
+	}
+
+	// Print the JSON
+	fmt.Println(string(recipeJSON))
 
 	if err := result.Err(); err != nil {
 		fmt.Println("Error during result iteration:", err)
