@@ -1,7 +1,0 @@
-* silverjoy
-
-This is a description of my silverjoy.
-
-** Usage
-
-To use my project, run this command: ./myproject --verbose
