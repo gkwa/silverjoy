@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -85,20 +86,34 @@ func test() {
 	}
 	defer tx.Close(ctx)
 
-	// Define your Cypher query
-	query := `
+	recipeNames := []string{"Peanut Sauce", "Vietnamese Spring Rolls (Gỏi Cuốn)"}
+	// recipeNames = []string{"Vietnamese Spring Rolls (Gỏi Cuốn)"}
+
+	// Define a template for the query
+	queryTemplate := `
 		MATCH (r:Recipe)
-		WHERE r.name = 'Peanut Sauce' OR r.name = 'Vietnamese Spring Rolls (Gỏi Cuốn)'
+		WHERE r.name IN [{{ range $i, $name := . }}{{ if $i }}, {{ end }}'{{ $name }}'{{ end }}]
 		WITH r
 		MATCH (r)-[:CONTAINS]->(p:Product)
 		OPTIONAL MATCH (p)-[:PURCHASE_AT]->(s:Store)
 		WITH p, COLLECT(DISTINCT s) AS stores
 		RETURN COLLECT(DISTINCT p.name) AS Ingredients,
-			   [store IN stores | CASE WHEN store IS NOT NULL THEN store.name ELSE 'Unknown' END] AS Stores
+		       [store IN stores | CASE WHEN store IS NOT NULL THEN store.name ELSE 'Unknown' END] AS Stores
 		ORDER BY [store IN Stores | toLower(store)]
 	`
 
-	result, err := tx.Run(ctx, query, nil)
+	// Create a new text template and parse the query
+	tmpl := template.Must(template.New("query").Parse(queryTemplate))
+
+	// Execute the template with recipe names
+	var query strings.Builder
+	err = tmpl.Execute(&query, recipeNames)
+	if err != nil {
+		fmt.Println("Error constructing query:", err)
+		return
+	}
+
+	result, err := tx.Run(ctx, query.String(), nil)
 	if err != nil {
 		fmt.Println("Error running Neo4j query:", err)
 		return
@@ -153,7 +168,7 @@ func test() {
 {{- end }}
 `
 
-	tmpl := template.Must(template.New("output").Parse(outputTemplate))
+	tmpl = template.Must(template.New("output").Parse(outputTemplate))
 
 	for i, recipe := range recipeIngredients {
 		err := tmpl.Execute(os.Stdout, recipe)
