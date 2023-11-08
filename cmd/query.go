@@ -42,6 +42,20 @@ func init() {
 	// queryCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
+type Store struct {
+	Name string
+}
+
+type Ingredient struct {
+	Name string
+	Urls []string
+}
+
+type RecipeIngredient struct {
+	Ingredients []Ingredient
+	Stores      []string
+}
+
 func test() error {
 	ctx := context.Background()
 	dbUri := "neo4j://localhost"
@@ -78,7 +92,8 @@ func test() error {
 	}
 	defer tx.Close(ctx)
 
-	recipeNames := []string{"Vietnamese Spring Rolls (Gỏi Cuốn)"}
+	recipeNames := []string{"Peanut Sauce", "Vietnamese Spring Rolls (Gỏi Cuốn)"}
+	recipeNames = []string{"Vietnamese Spring Rolls (Gỏi Cuốn)"}
 
 	queryTemplate := `
 	MATCH (r:Recipe)
@@ -116,6 +131,7 @@ func test() error {
 	}
 
 	for _, record := range result.Records {
+		// Convert the map to a JSON byte array
 		_, err := json.Marshal(record.AsMap())
 		if err != nil {
 			fmt.Println("Error:", err)
@@ -127,11 +143,28 @@ func test() error {
 			continue
 		}
 
+		fmt.Println(value)
+
 		var recipeIngredient RecipeIngredient
 		if err := json.Unmarshal([]byte(value.(string)), &recipeIngredient); err != nil {
 			fmt.Println("Error unmarshaling JSON:", err)
 			return err
 		}
+
+		// stuff, _ := json.MarshalIndent(recipeIngredient, "", " ")
+		// fmt.Println(string(stuff))
+		product := recipeIngredient.Ingredients[0]
+		stores := recipeIngredient.Stores
+		for _, url := range product.Urls {
+			fmt.Println(url)
+		}
+		for _, store := range stores {
+			fmt.Println(store)
+		}
+
+		// for _, store := range recipeIngredient.Stores {
+		// 	stuff[store.Name] = recipeIngredient.Ingredients
+		// }
 	}
 
 	return nil
