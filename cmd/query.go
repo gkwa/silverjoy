@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"os"
+	"log/slog"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -43,17 +43,15 @@ func init() {
 	// queryCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
-type RecipeIngredient struct {
-	Ingredients []struct {
-		Name string   `json:"name"`
-		Urls []string `json:"urls"`
-	} `json:"Ingredients"`
-	Stores []string `json:"Stores"`
+type Data struct {
+	Result struct {
+		Ingredients []struct {
+		} `json:"Ingredients"`
+	} `json:"result"`
 }
 
 func test() error {
 	ctx := context.Background()
-	// URI examples: "neo4j://localhost", "neo4j+s://xxx.databases.neo4j.io"
 	dbUri := "neo4j://localhost"
 	dbUser := ""
 	dbPassword := ""
@@ -118,87 +116,33 @@ func test() error {
 
 	fmt.Println(query.String())
 
-	var recipeIngredients []RecipeIngredient
+	result, _ := neo4j.ExecuteQuery(ctx, driver, query.String(),
+		map[string]any{}, neo4j.EagerResultTransformer,
+		neo4j.ExecuteQueryWithDatabase("neo4j"))
 
-	result, err := tx.Run(ctx, query.String(), nil)
-	if err != nil {
-		fmt.Println("Error running Neo4j query:", err)
-		return err
+	for _, record := range result.Records {
+		fmt.Println(record.AsMap())
 	}
 
-	for result.Next(ctx) {
-		record := result.Record()
-		value, found := record.Get("result")
-		if !found {
-			continue
-		}
+	for _, record := range result.Records {
+		var data Data
 
-		var recipeIngredient struct {
-			Ingredients []struct {
-				Name string   `json:"name"`
-				Urls []string `json:"urls"`
-			} `json:"Ingredients"`
-			Stores []string `json:"Stores"`
-		}
-
-		if err := json.Unmarshal([]byte(value.(string)), &recipeIngredient); err != nil {
-			fmt.Println("Error unmarshaling JSON:", err)
-			return err
-		}
-
-		recipeIngredients = append(recipeIngredients, recipeIngredient)
-	}
-
-	recipeJSON, err := json.MarshalIndent(recipeIngredients, "", "    ")
-	if err != nil {
-		fmt.Println("Error marshaling JSON:", err)
-		return err
-	}
-
-	// Print the JSON
-	fmt.Println(string(recipeJSON))
-
-	if err := result.Err(); err != nil {
-		fmt.Println("Error during result iteration:", err)
-		return err
-	}
-
-	// Commit the transaction
-	if err := tx.Commit(ctx); err != nil {
-		fmt.Println("Error committing transaction:", err)
-		return err
-	}
-
-	const outputTemplate = `
-{{- range .Stores }}{{ . }}{{- end }}
-{{- range .Ingredients }}
-  - {{ . }}
-{{- end }}
-`
-
-	tmpl = template.Must(template.New("output").Parse(outputTemplate))
-
-	for i, recipe := range recipeIngredients {
-		err := tmpl.Execute(os.Stdout, recipe)
+		// Convert the map to a JSON byte array
+		jsonData, err := json.Marshal(record.AsMap())
 		if err != nil {
-			fmt.Println("Error executing template:", err)
+			fmt.Println("Error:", err)
 			return err
 		}
 
-		filename := fmt.Sprintf("recipe%d.txt", i+1)
-		file, err := os.Create(filename)
-		if err != nil {
-			fmt.Println("Error creating file:", err)
+		// Unmarshal the JSON data into the struct
+		if err := json.Unmarshal(jsonData, &data); err != nil {
+			slog.Error("unmarshal", "error", err)
 			return err
 		}
-		defer file.Close()
 
-		err = tmpl.Execute(file, recipe)
-		if err != nil {
-			fmt.Println("Error writing to file:", err)
-			return err
-		}
+		// Print the populated struct
+		fmt.Printf("%+v\n", data)
 	}
-	
+
 	return nil
 }
