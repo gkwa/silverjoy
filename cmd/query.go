@@ -42,15 +42,18 @@ func init() {
 	// queryCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
-type Data struct {
-	Result struct {
-		Ingredients []struct {
-		} `json:"Ingredients"`
-	} `json:"result"`
+type Store struct {
+	Name string
+}
+
+type Ingredient struct {
+	Name string
+	Urls []string
 }
 
 type RecipeIngredient struct {
-	Ingredients any
+	Ingredients []Ingredient
+	Stores      []string
 }
 
 func test() error {
@@ -140,15 +143,28 @@ func test() error {
 			continue
 		}
 
+		fmt.Println(value)
+
 		var recipeIngredient RecipeIngredient
 		if err := json.Unmarshal([]byte(value.(string)), &recipeIngredient); err != nil {
 			fmt.Println("Error unmarshaling JSON:", err)
 			return err
 		}
 
-		stuff, _ := json.MarshalIndent(recipeIngredient, "", " ")
-		fmt.Println(string(stuff))
+		// stuff, _ := json.MarshalIndent(recipeIngredient, "", " ")
+		// fmt.Println(string(stuff))
+		product := recipeIngredient.Ingredients[0]
+		stores := recipeIngredient.Stores
+		for _, url := range product.Urls {
+			fmt.Println(url)
+		}
+		for _, store := range stores {
+			fmt.Println(store)
+		}
 
+		// for _, store := range recipeIngredient.Stores {
+		// 	stuff[store.Name] = recipeIngredient.Ingredients
+		// }
 	}
 
 	return nil
