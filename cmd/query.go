@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"log/slog"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -48,6 +47,10 @@ type Data struct {
 		Ingredients []struct {
 		} `json:"Ingredients"`
 	} `json:"result"`
+}
+
+type RecipeIngredient struct {
+	Ingredients any
 }
 
 func test() error {
@@ -125,23 +128,27 @@ func test() error {
 	}
 
 	for _, record := range result.Records {
-		var data Data
-
 		// Convert the map to a JSON byte array
-		jsonData, err := json.Marshal(record.AsMap())
+		_, err := json.Marshal(record.AsMap())
 		if err != nil {
 			fmt.Println("Error:", err)
 			return err
 		}
 
-		// Unmarshal the JSON data into the struct
-		if err := json.Unmarshal(jsonData, &data); err != nil {
-			slog.Error("unmarshal", "error", err)
+		value, found := record.Get("result")
+		if !found {
+			continue
+		}
+
+		var recipeIngredient RecipeIngredient
+		if err := json.Unmarshal([]byte(value.(string)), &recipeIngredient); err != nil {
+			fmt.Println("Error unmarshaling JSON:", err)
 			return err
 		}
 
-		// Print the populated struct
-		fmt.Printf("%+v\n", data)
+		stuff, _ := json.MarshalIndent(recipeIngredient, "", " ")
+		fmt.Println(string(stuff))
+
 	}
 
 	return nil
