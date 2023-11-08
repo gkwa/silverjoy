@@ -44,11 +44,14 @@ func init() {
 }
 
 type RecipeIngredient struct {
-	Ingredients []string
-	Stores      []string
+	Ingredients []struct {
+		Name string   `json:"name"`
+		Urls []string `json:"urls"`
+	} `json:"Ingredients"`
+	Stores []string `json:"Stores"`
 }
 
-func test() {
+func test() error {
 	ctx := context.Background()
 	// URI examples: "neo4j://localhost", "neo4j+s://xxx.databases.neo4j.io"
 	dbUri := "neo4j://localhost"
@@ -68,8 +71,6 @@ func test() {
 	}
 
 	// Create a session with write access
-
-	// Create a session with write access
 	session := driver.NewSession(
 		ctx,
 		neo4j.SessionConfig{
@@ -83,12 +84,12 @@ func test() {
 	tx, err := session.BeginTransaction(ctx)
 	if err != nil {
 		fmt.Println("Error beginning transaction:", err)
-		return
+		return err
 	}
 	defer tx.Close(ctx)
 
 	recipeNames := []string{"Peanut Sauce", "Vietnamese Spring Rolls (Gỏi Cuốn)"}
-	// recipeNames = []string{"Vietnamese Spring Rolls (Gỏi Cuốn)"}
+	recipeNames = []string{"Vietnamese Spring Rolls (Gỏi Cuốn)"}
 
 	queryTemplate := `
 	MATCH (r:Recipe)
@@ -97,7 +98,7 @@ func test() {
 	MATCH (r)-[:CONTAINS]->(p:Product)
 	OPTIONAL MATCH (p)-[:PURCHASE_AT]->(s:Store)
 	WITH p, COLLECT(DISTINCT s) AS stores
-	WITH p, stores, COLLECT(DISTINCT p.name) AS Ingredients, 
+	WITH p, stores, COLLECT(DISTINCT {name: p.name, urls: p.urls}) AS Ingredients,
 		 [store IN stores | CASE WHEN store IS NOT NULL THEN store.name ELSE 'Unknown' END] AS Stores
 	RETURN apoc.convert.toJson({
 		Ingredients: Ingredients,
@@ -112,7 +113,7 @@ func test() {
 	err = tmpl.Execute(&query, recipeNames)
 	if err != nil {
 		fmt.Println("Error constructing query:", err)
-		return
+		return err
 	}
 
 	fmt.Println(query.String())
@@ -122,7 +123,7 @@ func test() {
 	result, err := tx.Run(ctx, query.String(), nil)
 	if err != nil {
 		fmt.Println("Error running Neo4j query:", err)
-		return
+		return err
 	}
 
 	for result.Next(ctx) {
@@ -132,10 +133,17 @@ func test() {
 			continue
 		}
 
-		var recipeIngredient RecipeIngredient
+		var recipeIngredient struct {
+			Ingredients []struct {
+				Name string   `json:"name"`
+				Urls []string `json:"urls"`
+			} `json:"Ingredients"`
+			Stores []string `json:"Stores"`
+		}
+
 		if err := json.Unmarshal([]byte(value.(string)), &recipeIngredient); err != nil {
 			fmt.Println("Error unmarshaling JSON:", err)
-			return
+			return err
 		}
 
 		recipeIngredients = append(recipeIngredients, recipeIngredient)
@@ -144,7 +152,7 @@ func test() {
 	recipeJSON, err := json.MarshalIndent(recipeIngredients, "", "    ")
 	if err != nil {
 		fmt.Println("Error marshaling JSON:", err)
-		return
+		return err
 	}
 
 	// Print the JSON
@@ -152,13 +160,13 @@ func test() {
 
 	if err := result.Err(); err != nil {
 		fmt.Println("Error during result iteration:", err)
-		return
+		return err
 	}
 
 	// Commit the transaction
 	if err := tx.Commit(ctx); err != nil {
 		fmt.Println("Error committing transaction:", err)
-		return
+		return err
 	}
 
 	const outputTemplate = `
@@ -174,21 +182,23 @@ func test() {
 		err := tmpl.Execute(os.Stdout, recipe)
 		if err != nil {
 			fmt.Println("Error executing template:", err)
-			return
+			return err
 		}
 
 		filename := fmt.Sprintf("recipe%d.txt", i+1)
 		file, err := os.Create(filename)
 		if err != nil {
 			fmt.Println("Error creating file:", err)
-			return
+			return err
 		}
 		defer file.Close()
 
 		err = tmpl.Execute(file, recipe)
 		if err != nil {
 			fmt.Println("Error writing to file:", err)
-			return
+			return err
 		}
 	}
+	
+	return nil
 }
