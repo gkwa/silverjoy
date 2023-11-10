@@ -92,23 +92,10 @@ func test() error {
 	}
 	defer tx.Close(ctx)
 
-	recipeNames := []string{"Peanut Sauce", "Vietnamese Spring Rolls (Gỏi Cuốn)"}
-	recipeNames = []string{"Vietnamese Spring Rolls (Gỏi Cuốn)"}
+	recipeNames := []string{"Peanut Sauce"}
 
 	queryTemplate := `
-	MATCH (r:Recipe)
-	WHERE r.name IN [{{ range $i, $name := . }}{{ if $i }}, {{ end }}'{{ $name }}'{{ end }}]
-	WITH r
-	MATCH (r)-[:CONTAINS]->(p:Product)
-	OPTIONAL MATCH (p)-[:PURCHASE_AT]->(s:Store)
-	WITH p, COLLECT(DISTINCT s) AS stores
-	WITH p, stores, COLLECT(DISTINCT {name: p.name, urls: p.urls}) AS Ingredients,
-		 [store IN stores | CASE WHEN store IS NOT NULL THEN store.name ELSE 'Unknown' END] AS Stores
-	RETURN apoc.convert.toJson({
-		Ingredients: Ingredients,
-		Stores: Stores
-	}) AS result
-	ORDER BY [store IN Stores | toLower(store)]
+	MATCH (n:Product) RETURN n LIMIT 1
 	`
 
 	tmpl := template.Must(template.New("query").Parse(queryTemplate))
