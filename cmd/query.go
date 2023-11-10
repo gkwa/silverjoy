@@ -2,10 +2,8 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"html/template"
-	"strings"
+	"sort"
 
 	"github.com/spf13/cobra"
 
@@ -40,20 +38,6 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// queryCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-}
-
-type Store struct {
-	Name string
-}
-
-type Ingredient struct {
-	Name string
-	Urls []string
-}
-
-type RecipeIngredient struct {
-	Ingredients []Ingredient
-	Stores      []string
 }
 
 func test() error {
@@ -92,67 +76,48 @@ func test() error {
 	}
 	defer tx.Close(ctx)
 
-	recipeNames := []string{"Peanut Sauce"}
-
-	queryTemplate := `
-	MATCH (n:Product) RETURN n LIMIT 1
-	`
-
-	tmpl := template.Must(template.New("query").Parse(queryTemplate))
-
-	var query strings.Builder
-	err = tmpl.Execute(&query, recipeNames)
+	result, err := neo4j.ExecuteQuery(ctx, driver, `
+	MATCH (p:Product)
+	WITH p.name AS productName, p.urls AS productUrls
+	UNWIND productUrls AS url
+	RETURN productName, url
+	ORDER BY toLower(productName)
+			`, map[string]any{}, neo4j.EagerResultTransformer,
+		neo4j.ExecuteQueryWithDatabase("neo4j"))
 	if err != nil {
-		fmt.Println("Error constructing query:", err)
-		return err
+		panic(err)
 	}
 
-	fmt.Println(query.String())
+	products := make(map[string][]string)
 
-	result, _ := neo4j.ExecuteQuery(ctx, driver, query.String(),
-		map[string]any{}, neo4j.EagerResultTransformer,
-		neo4j.ExecuteQueryWithDatabase("neo4j"))
+	// Summary information
+	fmt.Printf("\nThe query `%v` returned %v records in %+v.\n",
+		result.Summary.Query().Text(), len(result.Records),
+		result.Summary.ResultAvailableAfter())
 
 	for _, record := range result.Records {
 		fmt.Println(record.AsMap())
+		productName, _ := record.Get("productName")
+		url, _ := record.Get("url")
+
+		products[productName.(string)] = append(products[productName.(string)], url.(string))
 	}
 
-	for _, record := range result.Records {
-		// Convert the map to a JSON byte array
-		_, err := json.Marshal(record.AsMap())
-		if err != nil {
-			fmt.Println("Error:", err)
-			return err
-		}
-
-		value, found := record.Get("result")
-		if !found {
-			continue
-		}
-
-		fmt.Println(value)
-
-		var recipeIngredient RecipeIngredient
-		if err := json.Unmarshal([]byte(value.(string)), &recipeIngredient); err != nil {
-			fmt.Println("Error unmarshaling JSON:", err)
-			return err
-		}
-
-		// stuff, _ := json.MarshalIndent(recipeIngredient, "", " ")
-		// fmt.Println(string(stuff))
-		product := recipeIngredient.Ingredients[0]
-		stores := recipeIngredient.Stores
-		for _, url := range product.Urls {
-			fmt.Println(url)
-		}
-		for _, store := range stores {
-			fmt.Println(store)
-		}
-
-		// for _, store := range recipeIngredient.Stores {
-		// 	stuff[store.Name] = recipeIngredient.Ingredients
-		// }
+	var productNames []string
+	for key := range products {
+		productNames = append(productNames, key)
 	}
+	sort.Strings(productNames)
 
+	for _, name := range productNames {
+		urls := products[name]
+		sort.Strings(urls)
+		fmt.Printf("%s:\n", name)
+		for _, url := range urls {
+			fmt.Printf("%s\n", url)
+		}
+
+		fmt.Println()
+	}
 	return nil
 }
