@@ -15,7 +15,7 @@ endif
 $(BIN): $(GO_FILES) $(GO_DEPS)
 	$(MAKE) pretty
 	go vet ./...
-	go build -o $(BIN) cmd/main.go
+	go build -o $(BIN) main.go
 
 .PHONY: test
 test: $(BIN)
