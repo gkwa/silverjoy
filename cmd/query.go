@@ -13,14 +13,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// queryCmd represents the query command
 var queryCmd = &cobra.Command{
 	Use:   "query",
 	Short: "Run a Neo4j query and generate an HTML report",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("query called")
+		slog.Debug("query called")
 		if err := runQueryAndGenerateHTML(); err != nil {
-			fmt.Println("Error:", err)
+			slog.Error("runQueryAndGenerateHTML", "error", err)
 		}
 	},
 }
@@ -75,7 +74,6 @@ func runQueryAndGenerateHTML() error {
 		resultTransformer,
 		neo4j.ExecuteQueryWithDatabase(databaseIdentifier),
 	)
-
 	if err != nil {
 		slog.Error("error", "error", err)
 		return err

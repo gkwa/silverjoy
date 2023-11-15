@@ -5,13 +5,19 @@ package cmd
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/taylormonacelli/goldbug"
 )
 
-var cfgFile string
+var (
+	cfgFile   string
+	logFormat string
+	verbose   bool
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -25,7 +31,7 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+	Run: func(cmd *cobra.Command, args []string) {},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -33,6 +39,7 @@ to quickly create a Cobra application.`,
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
+		slog.Error("rootCmd.Execute", "error", err)
 		os.Exit(1)
 	}
 }
@@ -46,9 +53,15 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.silverjoy.yaml)")
 
+	rootCmd.PersistentFlags().StringVar(&logFormat, "log-format", "", "json or text (default is text)")
+	viper.BindPFlag("log-format", rootCmd.PersistentFlags().Lookup("log-format"))
+
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Display more verbose output in console output. (default: false)")
+	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
+
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -72,5 +85,19 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+	}
+
+	setupLogging()
+}
+
+func setupLogging() {
+	if verbose || logFormat != "" {
+		if logFormat == "json" {
+			goldbug.SetDefaultLoggerJson(slog.LevelDebug)
+		} else {
+			goldbug.SetDefaultLoggerText(slog.LevelDebug)
+		}
+
+		slog.Debug("setup", "verbose", verbose)
 	}
 }
