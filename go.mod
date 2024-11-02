@@ -3,7 +3,7 @@ module github.com/taylormonacelli/silverjoy
 go 1.21.1
 
 require (
-	github.com/neo4j/neo4j-go-driver/v5 v5.25.0
+	github.com/neo4j/neo4j-go-driver/v5 v5.26.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
 	github.com/taylormonacelli/goldbug v0.0.6
