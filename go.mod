@@ -5,7 +5,7 @@ go 1.21.1
 require (
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.3
 	github.com/spf13/cobra v1.10.1
-	github.com/spf13/viper v1.20.1
+	github.com/spf13/viper v1.21.0
 	github.com/taylormonacelli/goldbug v0.0.6
 )
 
