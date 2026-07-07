@@ -4,7 +4,7 @@ go 1.24
 
 require (
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
-	github.com/neo4j/neo4j-go-driver/v6 v6.1.0
+	github.com/neo4j/neo4j-go-driver/v6 v6.2.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/taylormonacelli/goldbug v0.0.6
